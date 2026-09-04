@@ -1,0 +1,63 @@
+name: Auto Extract ZIP
+
+on:
+  push:
+    paths:
+      - '**/*.zip'
+
+permissions:
+  contents: write
+
+jobs:
+  unzip:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Extract ZIP files
+        run: |
+          set -e
+
+          found=false
+
+          while IFS= read -r zip; do
+            [ -z "$zip" ] && continue
+
+            found=true
+            echo "Processing: $zip"
+
+            # Get the directory containing the ZIP
+            dir=$(dirname "$zip")
+
+            echo "Extracting into: $dir"
+
+            # Extract directly into the ZIP's directory
+            unzip -o "$zip" -d "$dir"
+
+            # Remove the ZIP
+            rm -f "$zip"
+
+            echo "Finished: $zip"
+          done < <(git diff --name-only HEAD^ HEAD -- '*.zip')
+
+          if [ "$found" = false ]; then
+            echo "No ZIP files found."
+          fi
+
+      - name: Commit extracted files
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Auto-extract ZIP"
+            git push
+          fi
